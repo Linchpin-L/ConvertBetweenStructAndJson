@@ -10,9 +10,9 @@ import (
 
 // todo 完成对数组的支持
 type temp struct {
-	A uint `json:"123" binding:"required,max=30"` // 说明一下
-	B int  `binding:"omitempty"`
-	C float64
+	A uint    `json:"123" binding:"required,max=30,oneof=1 2 3"` // 说明一下
+	B int     `binding:"omitempty"`
+	C float64 `json:"cc" binding:"required,max=30,oneof=1 2 3"`
 	D string
 	E string
 }
@@ -42,14 +42,12 @@ func main() {
 
 		fmt.Println("--- 输出 ---")
 		fmt.Println(paras)
-		// format, count := convertToPostmanFormat(paras)
 
 		err = clipboard.WriteAll(paras)
 		if err != nil {
 			fmt.Println("error:", err)
 			continue
 		}
-		// fmt.Println(format + strconv.Itoa(count))
 	}
 }
 
@@ -67,15 +65,17 @@ func parseContent(content string) (string, error) {
 		// fmt.Println("->>", o)
 		// 处理每一行
 
-		remarkNew := "//"
+		remarkNew := "//" // 完整的 remark 字符串
+		remarkReq := ""   // 备注: 对参数的要求
 		key, typ, def, remark, err := parseLine(o)
 		if err != nil {
 			return "", err
 		}
 
 		// 键
+		var t string
 		if def != "" {
-			t, err := parseTag(def)
+			t, remarkReq, err = findKeyAndRemark(def)
 			if err != nil {
 				return "", err
 			}
@@ -125,6 +125,9 @@ func parseContent(content string) (string, error) {
 			remarkNew += " string"
 		}
 		res += ", " + remarkNew + ". "
+		if remarkReq != "" {
+			res += remarkReq + ". "
+		}
 		if len(remark) > 2 {
 			res += remark[2:]
 		}
@@ -173,27 +176,70 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 	return
 }
 
-// 解析 tag 并返回 json 的名字
+// 解析 tag 并返回 json 和 binding 的内容
 // 没有找到 json 字样时, 返回空
-func parseTag(tag string) (string, error) {
-	i := strings.Index(tag, "json:\"")
-	if i == -1 {
-		return "", nil
+func findKeyAndRemark(tag string) (string, string, error) {
+	tags, err := parseTag(tag)
+	if err != nil {
+		return "", "", err
 	}
 
-	// 从 i 处开始取第二个结束标识
-	found := false
-	j := i + 6
-	for l := len(tag); j < l; j++ {
-		if tag[j] == '"' {
-			found = true
-			break
+	var key, remark string
+	for _, o := range tags {
+		switch o.Key {
+		case "json":
+			key = o.Value
+		case "binding":
+			remark = o.Value
 		}
 	}
-	if !found || i+6 == j {
-		return "", errors.New("invalid tag: " + tag)
+
+	return key, remark, nil
+}
+
+type tag struct {
+	Key, Value string
+}
+
+// 解析 tag 并返回 json 的名字
+// json:"123" binding:"required,max=30,oneof=1 2 3"
+func parseTag(str string) ([]tag, error) {
+	// 先找到第一个不为空格的字符
+	// 然后找到第二个引号作为结束, 以此标注他的一部分
+	quotaFound := false
+	tags := make([]tag, 0)
+	l := len(str)
+	if l == 0 {
+		return tags, nil
 	}
-	tag = tag[i+6 : j]
-	param := strings.Split(tag, ",")
-	return param[0], nil
+
+	// 如果第一个字符是反引号, 那么忽略他. 最后一个反引号无需处理
+	s := -1
+	i := 0
+	if str[0] == '`' {
+		i = 1
+	}
+	for ; i < l; i++ {
+		o := str[i]
+		if o != ' ' {
+			if s == -1 {
+				s = i
+				continue
+			}
+			if o == '"' {
+				// 第一个引号
+				if !quotaFound {
+					quotaFound = true
+					continue
+				}
+				// 第二个引号
+				temp := strings.Split(str[s:i+1], ":")
+				tags = append(tags, tag{temp[0], temp[1][1 : len(temp[1])-1]})
+
+				s, quotaFound = -1, false
+			}
+		}
+	}
+
+	return tags, nil
 }
