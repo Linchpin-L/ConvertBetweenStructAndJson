@@ -13,8 +13,8 @@ type temp struct {
 	A uint    `json:"123" binding:"required,max=30,oneof=1 2 3"` // 说明一下
 	B int     `binding:"omitempty"`
 	C float64 `json:"cc" binding:"required,max=30,oneof=1 2 3"`
-	D string
-	E string
+	D *string
+	E []string
 }
 
 func main() {
@@ -86,6 +86,19 @@ func parseContent(content string) (string, error) {
 		res += "\"" + key + "\": "
 
 		// 类型
+		isArray := false
+		if typ[0] == '*' {
+			// 如果是指针类型, 那么忽略指针即可
+			typ = typ[1:]
+		} else if typ[0] == '[' {
+			// 如果是切片, 那么返回值前后加上方括号. 暂不支持数组.
+			if typ[1] != ']'{
+				return "", errors.New("unknown type")
+			}
+			isArray = true
+			typ = typ[2:]
+			res += "["
+		}
 		switch typ {
 		case "int8":
 			res += "1"
@@ -123,6 +136,9 @@ func parseContent(content string) (string, error) {
 		case "string":
 			res += "\"test\""
 			remarkNew += " string"
+		}
+		if isArray {
+			res += "]"
 		}
 		res += ", " + remarkNew + ". "
 		if remarkReq != "" {
