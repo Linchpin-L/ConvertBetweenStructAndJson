@@ -8,13 +8,15 @@ import (
 	"github.com/atotto/clipboard"
 )
 
-// todo 完成对数组的支持
 type temp struct {
 	A uint    `json:"123" binding:"required,max=30,oneof=1 2 3"` // 说明一下
 	B int     `binding:"omitempty"`
 	C float64 `json:"cc" binding:"required,max=30,oneof=1 2 3"`
 	D *string
 	E []string
+	F struct {
+		FA string
+	}
 }
 
 func main() {
@@ -58,8 +60,8 @@ func parseContent(content string) (string, error) {
 	for _, o := range strings.Split(content, "\r\n") {
 
 		o = strings.Trim(o, "\r\n\t ")
-		// fmt.Println("->", o)
-		if strings.HasPrefix(o, "type") || strings.HasPrefix(o, "}") {
+
+		if strings.HasPrefix(o, "type") || strings.Contains(o, "struct") || strings.HasPrefix(o, "}") {
 			continue
 		}
 		// fmt.Println("->>", o)
