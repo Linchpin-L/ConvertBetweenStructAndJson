@@ -17,10 +17,12 @@ type temp struct {
 	F struct {
 		FA string
 	}
+	G uint `json:"-"`
 }
 
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
+	fmt.Println("v 0.1.0")
 	fmt.Println("by linchpin1029@qq.com")
 
 	l := 0
@@ -53,10 +55,14 @@ func main() {
 	}
 }
 
+// 输入完整的结构体字符串
+//
+// 返回格式化好的 json 字符串
 func parseContent(content string) (string, error) {
 	res := "{\n"
 	// fmt.Println(strings.Split(content, "\r\n"))
 
+	// 按行处理
 	for _, o := range strings.Split(content, "\r\n") {
 
 		o = strings.Trim(o, "\r\n\t ")
@@ -84,6 +90,10 @@ func parseContent(content string) (string, error) {
 			if t != "" {
 				key = t
 			}
+			// 如果 json 指示不输出, 那么忽略改行
+			if t == "-" {
+				continue
+			}
 		}
 		res += "\"" + key + "\": "
 
@@ -94,7 +104,7 @@ func parseContent(content string) (string, error) {
 			typ = typ[1:]
 		} else if typ[0] == '[' {
 			// 如果是切片, 那么返回值前后加上方括号. 暂不支持数组.
-			if typ[1] != ']'{
+			if typ[1] != ']' {
 				return "", errors.New("unknown type")
 			}
 			isArray = true
@@ -196,13 +206,12 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 
 // 解析 tag 并返回 json 和 binding 的内容
 // 没有找到 json 字样时, 返回空
-func findKeyAndRemark(tag string) (string, string, error) {
+func findKeyAndRemark(tag string) (key string, remark string, err error) {
 	tags, err := parseTag(tag)
 	if err != nil {
 		return "", "", err
 	}
 
-	var key, remark string
 	for _, o := range tags {
 		switch o.Key {
 		case "json":
