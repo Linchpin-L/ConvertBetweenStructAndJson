@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -22,8 +24,9 @@ type temp struct {
 
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
-	fmt.Println("v 0.1.0")
+	fmt.Println("v 0.2.0")
 	fmt.Println("by linchpin1029@qq.com")
+	var err error
 
 	l := 0
 	for {
@@ -36,15 +39,25 @@ func main() {
 			continue
 		}
 		fmt.Println("--- 读取 ---")
-		fmt.Println(all)
 
-		paras, err := parseContent(all)
-		if err != nil {
-			fmt.Println(err)
-			continue
+		var paras string
+		// 如果是 json 文件, 那么转换成 struct
+		if json.Valid([]byte(all)) {
+			fmt.Println("--- 输出为 json ---")
+			paras, err = parseJson(all)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+		} else {
+			fmt.Println("--- 输出为 struct ---")
+			paras, err = parseContent(all)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
 		}
 
-		fmt.Println("--- 输出 ---")
 		fmt.Println(paras)
 
 		err = clipboard.WriteAll(paras)
@@ -53,6 +66,64 @@ func main() {
 			continue
 		}
 	}
+}
+
+func parseJson(sss string) (string, error) {
+	var res interface{}
+	json.Unmarshal([]byte(sss), &res)
+
+	plain := "type Apple "
+	s, err := parseJsonSub(res)
+	if err != nil {
+		return "", err
+	}
+	plain += s
+
+	return plain, nil
+}
+
+// 此函数只考虑 值部分
+func parseJsonSub(o interface{}) (string, error) {
+	line := ""
+
+	switch t := o.(type) {
+	case bool:
+		line += "bool"
+	case float64:
+		if o == math.Trunc(o.(float64)) {
+			line += "int"
+		} else {
+			line += "float64"
+		}
+	case string:
+		line += "string"
+	case []interface{}:
+		if len(t) == 0 {
+			line += "[]interface{}"
+		} else {
+			tt, err := parseJsonSub(t[0])
+			if err != nil {
+				return "", err
+			}
+			line += "[]" + tt
+		}
+	case map[string]interface{}:
+		line += "struct {\n"
+
+		for k, v := range t {
+			ttt, err := parseJsonSub(v)
+			if err != nil {
+				return "", err
+			}
+			line += fmt.Sprintf("%s %s `json:\"%s\"`\n", caseToUpper(k), ttt, k)
+		}
+
+		line += "}"
+	default:
+		return "", fmt.Errorf("不支持的类型: %s, 值为: %s", t, o)
+	}
+
+	return line, nil
 }
 
 // 输入完整的结构体字符串
@@ -269,4 +340,33 @@ func parseTag(str string) ([]tag, error) {
 	}
 
 	return tags, nil
+}
+
+// 下划线模式转驼峰式
+func caseToUpper(camel string) string {
+	l := len(camel)
+	if l == 0 {
+		return camel
+	}
+
+	res := make([]byte, l)
+
+	n := true
+	ri := 0
+	for i := 0; i < l; i++ {
+		if camel[i] == '_' {
+			n = true
+			continue
+		}
+
+		if n && camel[i] >= 'a' && camel[i] <= 'z' {
+			res[ri] = camel[i] - 32
+		} else {
+			res[ri] = camel[i]
+		}
+		n = false
+		ri++
+	}
+
+	return string(res[0:ri])
 }
