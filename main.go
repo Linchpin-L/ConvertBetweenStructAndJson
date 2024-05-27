@@ -90,6 +90,7 @@ func parseJsonSub(o interface{}) (string, error) {
 	case bool:
 		line += "bool"
 	case float64:
+		// todo 0.0 的识别会成为 int
 		if o == math.Trunc(o.(float64)) {
 			line += "int"
 		} else {
