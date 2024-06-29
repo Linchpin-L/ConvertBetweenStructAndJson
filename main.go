@@ -10,17 +10,6 @@ import (
 	"github.com/atotto/clipboard"
 )
 
-type temp struct {
-	A uint    `json:"123" binding:"required,max=30,oneof=1 2 3"` // 说明一下
-	B int     `binding:"omitempty"`
-	C float64 `json:"cc" binding:"required,max=30,oneof=1 2 3"`
-	D *string
-	E []string
-	F struct {
-		FA string
-	}
-	G uint `json:"-"`
-}
 
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
@@ -43,14 +32,14 @@ func main() {
 		var paras string
 		// 如果是 json 文件, 那么转换成 struct
 		if json.Valid([]byte(all)) {
-			fmt.Println("--- 输出为 json ---")
+			fmt.Println("--- json -> struct ---")
 			paras, err = parseJson(all)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
 		} else {
-			fmt.Println("--- 输出为 struct ---")
+			fmt.Println("--- struct -> json ---")
 			paras, err = parseContent(all)
 			if err != nil {
 				fmt.Println(err)
@@ -135,11 +124,23 @@ func parseContent(content string) (string, error) {
 	// fmt.Println(strings.Split(content, "\r\n"))
 
 	// 按行处理
-	for _, o := range strings.Split(content, "\r\n") {
-
-		o = strings.Trim(o, "\r\n\t ")
-
-		if strings.HasPrefix(o, "type") || strings.Contains(o, "struct") || strings.HasPrefix(o, "}") {
+	lines := strings.Split(content, "\n")
+	for i, l := 0, len(lines); i < l; i++ {
+		line := lines[i]
+		// fmt.Printf("处理行: '%s'\n", line)
+		line = strings.Trim(line, "\r\n\t ")
+		if line == "" {
+			continue
+		}
+		// 如果以其为开头, 说明是中间字段有结构体, 那么跳过这一行的检查
+		if strings.HasPrefix(line, "struct") {
+			continue
+		}
+		// 如果包含了 type 开头的, 那么说明是文件头, 删除他们
+		if strings.HasPrefix(line, "type") {
+			continue
+		}
+		if strings.HasPrefix(line, "}") {
 			continue
 		}
 		// fmt.Println("->>", o)
@@ -147,7 +148,9 @@ func parseContent(content string) (string, error) {
 
 		remarkNew := "//" // 完整的 remark 字符串
 		remarkReq := ""   // 备注: 对参数的要求
-		key, typ, def, remark, err := parseLine(o)
+		key, typ, def, remark, err := parseLine(line)
+		// fmt.Printf("分析行:%s\n", line)
+		// fmt.Printf("键:%s, 类别:%s, 标识:%s, 备注:%s\n", key, typ, def, remark)
 		if err != nil {
 			return "", err
 		}
@@ -220,6 +223,41 @@ func parseContent(content string) (string, error) {
 		case "string":
 			res += "\"test\""
 			remarkNew += " string"
+		case "struct":
+			// 先不考虑复杂情况.
+			// 先判断这一行是不是有闭合 {}
+			if strings.Contains(line, "}") {
+				res += "{}"
+				remarkNew += " struct"
+			} else {
+				// 向下寻找到 }
+				child := "struct {\n" // 还保持行的模式
+				for j := i + 1; j < l; j++ {
+					currentLine := strings.TrimSpace(lines[j])
+					if idx := strings.Index(currentLine, "}"); idx > -1 {
+						child += currentLine[:idx]
+						child += "\n"
+						child += "}"
+						// fmt.Println("$1", child, "$2")
+						temp, err := parseContent(child)
+						if err != nil {
+							fmt.Println("PC error:", err)
+						}
+						// fmt.Println("#1", temp, "#2")
+						res += temp
+						i = j // 接下来的几行都不用看了
+						break
+					} else {
+						child += currentLine
+						child += "\n"
+						// fmt.Println("add1", currentLine)
+						// fmt.Println("add2", child)
+					}
+				}
+				remarkNew += " struct"
+			}
+		default:
+			fmt.Printf("unknown type: \"%s\"\n", typ)
 		}
 		if isArray {
 			res += "]"
@@ -241,7 +279,16 @@ func parseContent(content string) (string, error) {
 }
 
 // 从一行结构体文本中取出四个部分
+// key: 字段名
+// typ: 字段类型
+// def: 标注
+// remark: 备注
 func parseLine(line string) (key, typ, def, remark string, err error) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return
+	}
+	
 	// 找到注释
 	if i := strings.Index(line, "//"); i >= 0 {
 		remark = strings.TrimLeft(line[i:], " \r\n\t")
@@ -267,6 +314,9 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 		if s != -1 {
 			key = line[s:i]
 			typ = strings.Trim(line[i:], " \r\n\t")
+			if strings.HasPrefix(typ, "struct") { // typ: "struct {}"
+				typ = "struct"
+			}
 			return
 		}
 	}
