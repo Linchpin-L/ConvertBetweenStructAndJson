@@ -10,14 +10,13 @@ import (
 	"github.com/atotto/clipboard"
 )
 
-
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
 	fmt.Println("v 0.2.0")
 	fmt.Println("by linchpin1029@qq.com")
 	var err error
 
-	l := 0
+	l := ""
 	for {
 		_, _ = fmt.Scanln(&l)
 
@@ -34,6 +33,13 @@ func main() {
 		if json.Valid([]byte(all)) {
 			fmt.Println("--- json -> struct ---")
 			paras, err = parseJson(all)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+		} else if l == "dot" {
+			fmt.Println("--- struct -> dot ---")
+			paras, err = structToDot(all)
 			if err != nil {
 				fmt.Println(err)
 				continue
@@ -288,7 +294,7 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 	if line == "" {
 		return
 	}
-	
+
 	// 找到注释
 	if i := strings.Index(line, "//"); i >= 0 {
 		remark = strings.TrimLeft(line[i:], " \r\n\t")
@@ -328,6 +334,9 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 
 // 解析 tag 并返回 json 和 binding 的内容
 // 没有找到 json 字样时, 返回空
+//
+//	key: json 的 key
+//	remark: binding 的内容
 func findKeyAndRemark(tag string) (key string, remark string, err error) {
 	tags, err := parseTag(tag)
 	if err != nil {
@@ -420,4 +429,136 @@ func caseToUpper(camel string) string {
 	}
 
 	return string(res[0:ri])
+}
+
+type dot struct {
+	// open     bool   // 启用
+	name     string // 参数名
+	value    string // 参数值
+	ty       string // 类型, 如 string
+	required bool   // 必须
+	remark   string // 说明
+}
+
+// 将结构体解析为 dot 模式
+// 即: 启用,参数名,参数值,类型,必需,固定参数值,说明
+func structToDot(content string) (string, error) {
+	dts := make([]*dot, 0)
+
+	// 按行处理
+	// 此模式应用于 get 请求, 所以结构体简单, 不涉及嵌套. 且暂不处理数组.
+	lines := strings.Split(content, "\n")
+	for i, l := 0, len(lines); i < l; i++ {
+		line := lines[i]
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// 如果包含了 type 开头的, 那么说明是文件头, 删除他们
+		if strings.HasPrefix(line, "type") {
+			continue
+		}
+		// 如果以其为开头, 说明是中间字段有结构体, 那么跳过这一行的检查
+		if strings.HasPrefix(line, "struct") {
+			continue
+		}
+		if strings.HasPrefix(line, "}") {
+			continue
+		}
+
+		dt := new(dot)
+		remarkReq := "" // 备注: 对参数的要求
+		var def, typ string
+		var err error
+		dt.name, typ, def, dt.remark, err = parseLine(line)
+		// 如果 remark 以 // 开头, 那么删除它
+		dt.remark = strings.TrimPrefix(dt.remark, "//")
+		// fmt.Printf("分析行:%s\n", line)
+		// fmt.Printf("键:%s, 类别:%s, 标识:%s, 备注:%s\n", key, typ, def, remark)
+		if err != nil {
+			return "", err
+		}
+
+		// 查询是否必填
+		if def != "" {
+			_, remarkReq, err = findKeyAndRemark(def)
+			if err != nil {
+				return "", err
+			}
+			// 如果 binding 中包含了 required, 说明参数是必需的
+			if strings.Contains(remarkReq, "required") {
+				dt.required = true
+			}
+		}
+
+		// 类型
+		if typ[0] == '*' {
+			// 如果是指针类型, 那么忽略指针即可
+			typ = typ[1:]
+		}
+		remarkNew := "" // 完整的 remark 字符串
+		switch typ {
+		case "int8":
+			dt.value = "1"
+			dt.ty = "number"
+			remarkNew += " int8"
+		case "int16":
+			dt.value = "1"
+			dt.ty = "number"
+			remarkNew += " int16"
+		case "int32":
+			dt.value = "1"
+			dt.ty = "number"
+			remarkNew += " int32"
+		case "int64", "int":
+			dt.value = "1"
+			dt.ty = "number"
+			remarkNew += " int64"
+		case "uint8":
+			dt.value = "1"
+			dt.ty = "number"
+			remarkNew += " uint8"
+		case "uint16":
+			dt.value = "1"
+			dt.ty = "number"
+			remarkNew += " uint16"
+		case "uint32":
+			dt.value = "1"
+			dt.ty = "number"
+			remarkNew += " uint32"
+		case "uint64", "uint":
+			dt.value = "1"
+			dt.ty = "number"
+			remarkNew += " uint64"
+		case "float32":
+			dt.value = "1.1"
+			dt.ty = "number"
+			remarkNew += " float32"
+		case "float64":
+			dt.value = "2.64"
+			dt.ty = "number"
+			remarkNew += " float64"
+		case "bool":
+			dt.value = "0"
+			dt.ty = "boolean"
+		case "string":
+			dt.value = "test"
+			dt.ty = "string"
+		case "struct":
+			return "", errors.New("该模式不支持嵌套结构体")
+		default:
+			return "", fmt.Errorf("unknown type: \"%s\"", typ)
+		}
+		// 在前后加双引号, 避免逗号识别错误, 因为是 csv 格式
+		dt.remark = "\"" + remarkNew + dt.remark + "\""
+		dts = append(dts, dt)
+	}
+
+	res := ""
+	for _, o := range dts {
+		// res += fmt.Sprintf("启用,参数名,参数值,类型,必需,固定参数值,说明\n", o.name, o.ty, o.value)
+		res += fmt.Sprintf("true,%s,%s,%s,%t,,%s\n", o.name, o.value, o.ty, o.required, o.remark)
+	}
+
+	return res, nil
 }

@@ -5,7 +5,7 @@ A simple cli tool. copy struct, give you json. copy json, give you struct.
 # Use
 1. Open it with double clicks.
 1. Ctrl + C to copy any struct or json plain text.
-2. Click Enter.
+2. Click Enter. (如果输入 dot 再回车, 视为将结构体转换成 csv 模式. 结果可应用于一些文档工具 get 请求的批量编辑)
 3. Ctrl + V to paste.
 4. Then continue the loop.
 5. In short, 程序会从剪贴板读取文本, 判断文本类型, 返回相对应的内容, 并写入剪贴板.

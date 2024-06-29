@@ -63,3 +63,25 @@ func TestParseContent(t *testing.T) {
 		return
 	}
 }
+
+func TestStructToDot(t *testing.T) {
+	example := "struct {\n"+
+	"ID  uint `binding:\"required\"`\n"+
+	"U   uint // [统计需要]如果用户登录, 需要将uid放置其中并传递\n"+
+	"Fav bool // 是否获取收藏信息\n"+
+"}"
+
+	res, err := structToDot(example)
+	if err != nil {
+		t.Errorf("parseContent error: %v", err)
+		return
+	}
+	if res != `true,ID,1,number,true,," uint64"
+true,U,1,number,false,," uint64 [统计需要]如果用户登录, 需要将uid放置其中并传递"
+true,Fav,0,boolean,false,," 是否获取收藏信息"
+` {
+		t.Errorf("parseContent error: %v", res)
+		return
+	}
+}
+
