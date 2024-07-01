@@ -16,8 +16,8 @@ func main() {
 	fmt.Println("by linchpin1029@qq.com")
 	var err error
 
-	l := ""
 	for {
+		l := ""
 		_, _ = fmt.Scanln(&l)
 
 		// 从剪贴板获取数据
