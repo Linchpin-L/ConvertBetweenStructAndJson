@@ -161,18 +161,18 @@ func parseContent(content string) (string, error) {
 			return "", err
 		}
 
-		// 键
-		var t string
+		// 确定字段名
+		var t tagJson
 		if def != "" {
 			t, remarkReq, err = findKeyAndRemark(def)
 			if err != nil {
 				return "", err
 			}
-			if t != "" {
-				key = t
+			if t.Key != "" {
+				key = t.Key
 			}
 			// 如果 json 指示不输出, 那么忽略改行
-			if t == "-" {
+			if t.Key == "-" {
 				continue
 			}
 		}
@@ -332,21 +332,34 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 	return
 }
 
+type tagJson struct {
+	Key       string
+	OmitEmpty bool // 是否含有 omitempty
+}
+
 // 解析 tag 并返回 json 和 binding 的内容
 // 没有找到 json 字样时, 返回空
 //
 //	key: json 的 key
 //	remark: binding 的内容
-func findKeyAndRemark(tag string) (key string, remark string, err error) {
+func findKeyAndRemark(tag string) (key tagJson, remark string, err error) {
 	tags, err := parseTag(tag)
 	if err != nil {
-		return "", "", err
+		return tagJson{}, "", err
 	}
 
 	for _, o := range tags {
 		switch o.Key {
 		case "json":
-			key = o.Value
+			// 判断值是否含有逗号, 如果有, 则前边为 key, 后边为 omitempty
+			if idx := strings.Index(o.Value, ","); idx > -1 {
+				key.Key = o.Value[:idx]
+				if o.Value[idx+1:] == "omitempty" {
+					key.OmitEmpty = true
+				}
+			} else {
+				key.Key = o.Value
+			}
 		case "binding":
 			remark = o.Value
 		}

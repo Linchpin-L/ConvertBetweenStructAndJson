@@ -31,7 +31,7 @@ func TestParseJson(t *testing.T) {
 
 func TestParseContent(t *testing.T) {
 	example := "type temp struct {\n"+
-	"A uint    `json:\"123\" binding:\"required,max=30,oneof=1 2 3\"` // 说明一下\n"+
+	"A uint    `json:\"123,omitempty\" binding:\"required,max=30,oneof=1 2 3\"` // 说明一下\n"+
 	"B int     `binding:\"omitempty\"`\n"+
 	"C float64 `json:\"cc\" binding:\"required,max=30,oneof=1 2 3\"`\n"+
 	"D *string\n"+
