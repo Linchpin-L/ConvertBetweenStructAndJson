@@ -12,7 +12,7 @@ import (
 
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
-	fmt.Println("v 0.2.0")
+	fmt.Println("v 0.2.1")
 	fmt.Println("by linchpin1029@qq.com")
 	var err error
 
@@ -46,7 +46,7 @@ func main() {
 			}
 		} else {
 			fmt.Println("--- struct -> json ---")
-			paras, err = parseContent(all)
+			paras, err = structToJson(all)
 			if err != nil {
 				fmt.Println(err)
 				continue
@@ -125,7 +125,7 @@ func parseJsonSub(o interface{}) (string, error) {
 // 输入完整的结构体字符串
 //
 // 返回格式化好的 json 字符串
-func parseContent(content string) (string, error) {
+func structToJson(content string) (string, error) {
 	res := "{\n"
 	// fmt.Println(strings.Split(content, "\r\n"))
 
@@ -152,8 +152,8 @@ func parseContent(content string) (string, error) {
 		// fmt.Println("->>", o)
 		// 处理每一行
 
-		remarkNew := "//" // 完整的 remark 字符串
-		remarkReq := ""   // 备注: 对参数的要求
+		typeWithRemarkStart := "//" // 注释的双斜线加上值类型
+		var remarkReq tagBinding    // 备注: 对参数的要求
 		key, typ, def, remark, err := parseLine(line)
 		// fmt.Printf("分析行:%s\n", line)
 		// fmt.Printf("键:%s, 类别:%s, 标识:%s, 备注:%s\n", key, typ, def, remark)
@@ -195,46 +195,46 @@ func parseContent(content string) (string, error) {
 		switch typ {
 		case "int8":
 			res += "1"
-			remarkNew += " int8"
+			typeWithRemarkStart += " int8"
 		case "int16":
 			res += "1"
-			remarkNew += " int16"
+			typeWithRemarkStart += " int16"
 		case "int32":
 			res += "1"
-			remarkNew += " int32"
+			typeWithRemarkStart += " int32"
 		case "int64", "int":
 			res += "1"
-			remarkNew += " int64"
+			typeWithRemarkStart += " int64"
 		case "uint8":
 			res += "1"
-			remarkNew += " uint8"
+			typeWithRemarkStart += " uint8"
 		case "uint16":
 			res += "1"
-			remarkNew += " uint16"
+			typeWithRemarkStart += " uint16"
 		case "uint32":
 			res += "1"
-			remarkNew += " uint32"
+			typeWithRemarkStart += " uint32"
 		case "uint64", "uint":
 			res += "1"
-			remarkNew += " uint64"
+			typeWithRemarkStart += " uint64"
 		case "float32":
 			res += "1.1"
-			remarkNew += " float32"
+			typeWithRemarkStart += " float32"
 		case "float64":
 			res += "2.64"
-			remarkNew += " float64"
+			typeWithRemarkStart += " float64"
 		case "bool":
 			res += "false"
-			remarkNew += " bool"
+			typeWithRemarkStart += " bool"
 		case "string":
 			res += "\"test\""
-			remarkNew += " string"
+			typeWithRemarkStart += " string"
 		case "struct":
 			// 先不考虑复杂情况.
 			// 先判断这一行是不是有闭合 {}
 			if strings.Contains(line, "}") {
 				res += "{}"
-				remarkNew += " struct"
+				typeWithRemarkStart += " struct"
 			} else {
 				// 向下寻找到 }
 				child := "struct {\n" // 还保持行的模式
@@ -245,7 +245,7 @@ func parseContent(content string) (string, error) {
 						child += "\n"
 						child += "}"
 						// fmt.Println("$1", child, "$2")
-						temp, err := parseContent(child)
+						temp, err := structToJson(child)
 						if err != nil {
 							fmt.Println("PC error:", err)
 						}
@@ -260,7 +260,7 @@ func parseContent(content string) (string, error) {
 						// fmt.Println("add2", child)
 					}
 				}
-				remarkNew += " struct"
+				typeWithRemarkStart += " struct"
 			}
 		default:
 			fmt.Printf("unknown type: \"%s\"\n", typ)
@@ -268,9 +268,9 @@ func parseContent(content string) (string, error) {
 		if isArray {
 			res += "]"
 		}
-		res += ", " + remarkNew + ". "
-		if remarkReq != "" {
-			res += remarkReq + ". "
+		res += ", " + typeWithRemarkStart + ". "
+		if remarkReq != nil {
+			res += remarkReq.value() + ". "
 		}
 		if len(remark) > 2 {
 			res += remark[2:]
@@ -337,15 +337,44 @@ type tagJson struct {
 	OmitEmpty bool // 是否含有 omitempty
 }
 
+type tagBinding []tag
+
+func (b tagBinding) isRequired() bool {
+	if b == nil {
+		return false
+	}
+
+	for _, o := range b {
+		if o.Key == "required" {
+			return true
+		}
+	}
+	return false
+}
+
+// 获取解析前的 binding 规则字符串
+func (b tagBinding) value() string {
+	if b == nil {
+		return ""
+	}
+
+	var res string
+	for _, o := range b {
+		if o.Value == "" {
+			res += o.Key + ","
+		} else {
+			res += o.Key + "=" + o.Value + ","
+		}
+	}
+	return res[:len(res)-1]
+}
+
 // 解析 tag 并返回 json 和 binding 的内容
 // 没有找到 json 字样时, 返回空
-//
-//	key: json 的 key
-//	remark: binding 的内容
-func findKeyAndRemark(tag string) (key tagJson, remark string, err error) {
-	tags, err := parseTag(tag)
+func findKeyAndRemark(tag1 string) (key tagJson, bindings tagBinding, err error) {
+	tags, err := parseTag(tag1)
 	if err != nil {
-		return tagJson{}, "", err
+		return tagJson{}, nil, err
 	}
 
 	for _, o := range tags {
@@ -361,11 +390,21 @@ func findKeyAndRemark(tag string) (key tagJson, remark string, err error) {
 				key.Key = o.Value
 			}
 		case "binding":
-			remark = o.Value
+			for _, o := range strings.Split(o.Value, ",") {
+				if o == "" {
+					continue
+				}
+				temp := strings.Split(o, "=")
+				if len(temp) == 1 {
+					bindings = append(bindings, tag{o, ""})
+				} else {
+					bindings = append(bindings, tag{temp[0], temp[1]})
+				}
+			}
 		}
 	}
 
-	return key, remark, nil
+	return key, bindings, nil
 }
 
 type tag struct {
@@ -445,7 +484,7 @@ func caseToUpper(camel string) string {
 }
 
 type dot struct {
-	// open     bool   // 启用
+	open     bool   // 启用
 	name     string // 参数名
 	value    string // 参数值
 	ty       string // 类型, 如 string
@@ -480,12 +519,13 @@ func structToDot(content string) (string, error) {
 		}
 
 		dt := new(dot)
-		remarkReq := "" // 备注: 对参数的要求
+		var binding tagBinding // 备注: 对参数的要求
 		var def, typ string
 		var err error
 		dt.name, typ, def, dt.remark, err = parseLine(line)
 		// 如果 remark 以 // 开头, 那么删除它
 		dt.remark = strings.TrimPrefix(dt.remark, "//")
+		dt.remark = strings.Trim(dt.remark, " ")
 		// fmt.Printf("分析行:%s\n", line)
 		// fmt.Printf("键:%s, 类别:%s, 标识:%s, 备注:%s\n", key, typ, def, remark)
 		if err != nil {
@@ -494,13 +534,14 @@ func structToDot(content string) (string, error) {
 
 		// 查询是否必填
 		if def != "" {
-			_, remarkReq, err = findKeyAndRemark(def)
+			_, binding, err = findKeyAndRemark(def)
 			if err != nil {
 				return "", err
 			}
 			// 如果 binding 中包含了 required, 说明参数是必需的
-			if strings.Contains(remarkReq, "required") {
+			if binding.isRequired() {
 				dt.required = true
+				dt.open = true
 			}
 		}
 
@@ -514,43 +555,43 @@ func structToDot(content string) (string, error) {
 		case "int8":
 			dt.value = "1"
 			dt.ty = "number"
-			remarkNew += " int8"
+			remarkNew += "int8"
 		case "int16":
 			dt.value = "1"
 			dt.ty = "number"
-			remarkNew += " int16"
+			remarkNew += "int16"
 		case "int32":
 			dt.value = "1"
 			dt.ty = "number"
-			remarkNew += " int32"
+			remarkNew += "int32"
 		case "int64", "int":
 			dt.value = "1"
 			dt.ty = "number"
-			remarkNew += " int64"
+			remarkNew += "int64"
 		case "uint8":
 			dt.value = "1"
 			dt.ty = "number"
-			remarkNew += " uint8"
+			remarkNew += "uint8"
 		case "uint16":
 			dt.value = "1"
 			dt.ty = "number"
-			remarkNew += " uint16"
+			remarkNew += "uint16"
 		case "uint32":
 			dt.value = "1"
 			dt.ty = "number"
-			remarkNew += " uint32"
+			remarkNew += "uint32"
 		case "uint64", "uint":
 			dt.value = "1"
 			dt.ty = "number"
-			remarkNew += " uint64"
+			remarkNew += "uint64"
 		case "float32":
 			dt.value = "1.1"
 			dt.ty = "number"
-			remarkNew += " float32"
+			remarkNew += "float32"
 		case "float64":
 			dt.value = "2.64"
 			dt.ty = "number"
-			remarkNew += " float64"
+			remarkNew += "float64"
 		case "bool":
 			dt.value = "0"
 			dt.ty = "boolean"
@@ -562,15 +603,27 @@ func structToDot(content string) (string, error) {
 		default:
 			return "", fmt.Errorf("unknown type: \"%s\"", typ)
 		}
+
+		// 拼装备注. 把备注需要的几个字段拼接起来
 		// 在前后加双引号, 避免逗号识别错误, 因为是 csv 格式
-		dt.remark = "\"" + remarkNew + dt.remark + "\""
+		temp := []string{}
+		if remarkNew != "" {
+			temp = append(temp, remarkNew)
+		}
+		if t := binding.value(); t != "" {
+			temp = append(temp, t)
+		}
+		if dt.remark != "" {
+			temp = append(temp, dt.remark)
+		}
+		dt.remark = "\"" + strings.Join(temp, ", ") + "\""
 		dts = append(dts, dt)
 	}
 
 	res := ""
 	for _, o := range dts {
 		// res += fmt.Sprintf("启用,参数名,参数值,类型,必需,固定参数值,说明\n", o.name, o.ty, o.value)
-		res += fmt.Sprintf("true,%s,%s,%s,%t,,%s\n", o.name, o.value, o.ty, o.required, o.remark)
+		res += fmt.Sprintf("%t,%s,%s,%s,%t,,%s\n", o.open, o.name, o.value, o.ty, o.required, o.remark)
 	}
 
 	return res, nil

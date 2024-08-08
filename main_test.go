@@ -29,28 +29,28 @@ func TestParseJson(t *testing.T) {
 // 	G uint `json:"-"`
 // }
 
-func TestParseContent(t *testing.T) {
-	example := "type temp struct {\n"+
-	"A uint    `json:\"123,omitempty\" binding:\"required,max=30,oneof=1 2 3\"` // 说明一下\n"+
-	"B int     `binding:\"omitempty\"`\n"+
-	"C float64 `json:\"cc\" binding:\"required,max=30,oneof=1 2 3\"`\n"+
-	"D *string\n"+
-	"E []string\n"+
-	"F struct {\n"+
-		"FA string\n"+
-		"FB uint\n"+
-	"}\n"+
-	"G uint `json:\"-\"`\n"+
-"}"
+func TestStructToJson(t *testing.T) {
+	example := "type temp struct {\n" +
+		"A uint    `json:\"123,omitempty\" binding:\"required,max=30,oneof=1 2 3\"` // 说明一下\n" +
+		"B int     `binding:\"omitempty,required_if=Field1 foobar\"`\n" +
+		"C float64 `json:\"cc\" binding:\"required,max=30,oneof=1 2 3\"`\n" +
+		"D *string\n" +
+		"E []string\n" +
+		"F struct {\n" +
+		"FA string\n" +
+		"FB uint\n" +
+		"}\n" +
+		"G uint `json:\"-\"`\n" +
+		"}"
 
-	res, err := parseContent(example)
+	res, err := structToJson(example)
 	if err != nil {
 		t.Errorf("parseContent error: %v", err)
 		return
 	}
 	if res != `{
 "123": 1, // uint64. required,max=30,oneof=1 2 3.  说明一下
-"B": 1, // int64. omitempty. 
+"B": 1, // int64. omitempty,required_if=Field1 foobar. 
 "cc": 2.64, // float64. required,max=30,oneof=1 2 3. 
 "D": "test", // string. 
 "E": ["test"], // string. 
@@ -65,23 +65,25 @@ func TestParseContent(t *testing.T) {
 }
 
 func TestStructToDot(t *testing.T) {
-	example := "struct {\n"+
-	"ID  uint `binding:\"required\"`\n"+
-	"U   uint // [统计需要]如果用户登录, 需要将uid放置其中并传递\n"+
-	"Fav bool // 是否获取收藏信息\n"+
-"}"
+	// 因为 get 请求不支持嵌套, 所以这里无法与上边试用同一个 example
+	example := "struct {\n" +
+		"ID  uint `binding:\"required\"`\n" +
+		"U   uint `binding:\"required_if=Field1 foobar\"` // [统计需要]如果用户登录, 需要将uid放置其中并传递\n" +
+		"Fav bool // 是否获取收藏信息\n" +
+		"E   bool\n" +
+		"}"
 
 	res, err := structToDot(example)
 	if err != nil {
 		t.Errorf("parseContent error: %v", err)
 		return
 	}
-	if res != `true,ID,1,number,true,," uint64"
-true,U,1,number,false,," uint64 [统计需要]如果用户登录, 需要将uid放置其中并传递"
-true,Fav,0,boolean,false,," 是否获取收藏信息"
+	if res != `true,ID,1,number,true,,"uint64, required"
+false,U,1,number,false,,"uint64, required_if=Field1 foobar, [统计需要]如果用户登录, 需要将uid放置其中并传递"
+false,Fav,0,boolean,false,,"是否获取收藏信息"
+false,E,0,boolean,false,,""
 ` {
 		t.Errorf("parseContent error: %v", res)
 		return
 	}
 }
-
