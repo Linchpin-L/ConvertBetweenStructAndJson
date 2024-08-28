@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-func TestParseJson(t *testing.T) {
-	res, err := parseJson("{\"a\":1,\"b\":2,\"c\":3}")
+func TestJsonToStruct(t *testing.T) {
+	res, err := jsonToStruct("{\"a\":1,\"b\":2,\"c\":3}")
 	if err != nil {
 		t.Errorf("parseJson error: %v", err)
 		return
@@ -31,11 +31,12 @@ func TestParseJson(t *testing.T) {
 
 func TestStructToJson(t *testing.T) {
 	example := "type temp struct {\n" +
-		"A uint    `json:\"123,omitempty\" binding:\"required,max=30,oneof=1 2 3\"` // 说明一下\n" +
-		"B int     `binding:\"omitempty,required_if=Field1 foobar\"`\n" +
+		"A uint    `json:\"123,omitempty\" binding:\"required,max=30,oneof=1 2 3\"` // 注释\n" +
+		"B int     `binding:\"omitempty,required_if=Field1 foobar\"` //注释\n" +
 		"C float64 `json:\"cc\" binding:\"required,max=30,oneof=1 2 3\"`\n" +
 		"D *string\n" +
 		"E []string\n" +
+		"E1 *[]string\n" +
 		"F struct {\n" +
 		"FA string\n" +
 		"FB uint\n" +
@@ -49,15 +50,16 @@ func TestStructToJson(t *testing.T) {
 		return
 	}
 	if res != `{
-"123": 1, // uint64. required,max=30,oneof=1 2 3.  说明一下
-"B": 1, // int64. omitempty,required_if=Field1 foobar. 
-"cc": 2.64, // float64. required,max=30,oneof=1 2 3. 
-"D": "test", // string. 
-"E": ["test"], // string. 
+"123": 1, // uint64. required,max=30,oneof=1 2 3. 注释
+"B": 1, // int64. omitempty,required_if=Field1 foobar. 注释
+"cc": 2.64, // float64. required,max=30,oneof=1 2 3.
+"D": "test", // string.
+"E": ["test"], // string.
+"E1": ["test"], // string.
 "F": {
-"FA": "test", // string. 
-"FB": 1, // uint64. 
-}, // struct. 
+"FA": "test", // string.
+"FB": 1, // uint64.
+}, // struct.
 }` {
 		t.Errorf("parseContent error: %v", res)
 		return

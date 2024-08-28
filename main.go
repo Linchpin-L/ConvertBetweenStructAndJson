@@ -12,7 +12,7 @@ import (
 
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
-	fmt.Println("v 0.2.1")
+	fmt.Println("v 0.2.2")
 	fmt.Println("by linchpin1029@qq.com")
 	var err error
 
@@ -32,7 +32,7 @@ func main() {
 		// 如果是 json 文件, 那么转换成 struct
 		if json.Valid([]byte(all)) {
 			fmt.Println("--- json -> struct ---")
-			paras, err = parseJson(all)
+			paras, err = jsonToStruct(all)
 			if err != nil {
 				fmt.Println(err)
 				continue
@@ -63,7 +63,7 @@ func main() {
 	}
 }
 
-func parseJson(sss string) (string, error) {
+func jsonToStruct(sss string) (string, error) {
 	var res interface{}
 	json.Unmarshal([]byte(sss), &res)
 
@@ -183,8 +183,9 @@ func structToJson(content string) (string, error) {
 		if typ[0] == '*' {
 			// 如果是指针类型, 那么忽略指针即可
 			typ = typ[1:]
-		} else if typ[0] == '[' {
-			// 如果是切片, 那么返回值前后加上方括号. 暂不支持数组.
+		}
+		if typ[0] == '[' {
+			// 如果是切片, 那么返回值前后加上方括号.
 			if typ[1] != ']' {
 				return "", errors.New("unknown type")
 			}
@@ -268,12 +269,12 @@ func structToJson(content string) (string, error) {
 		if isArray {
 			res += "]"
 		}
-		res += ", " + typeWithRemarkStart + ". "
+		res += ", " + typeWithRemarkStart + "."
 		if remarkReq != nil {
-			res += remarkReq.value() + ". "
+			res += " " + remarkReq.value() + "."
 		}
-		if len(remark) > 2 {
-			res += remark[2:]
+		if remark != "" {
+			res += " " + remark
 		}
 
 		res += "\n"
@@ -288,7 +289,7 @@ func structToJson(content string) (string, error) {
 // key: 字段名
 // typ: 字段类型
 // def: 标注
-// remark: 备注
+// remark: 备注. 不含 "//". 去重两端空格.
 func parseLine(line string) (key, typ, def, remark string, err error) {
 	line = strings.TrimSpace(line)
 	if line == "" {
@@ -297,7 +298,7 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 
 	// 找到注释
 	if i := strings.Index(line, "//"); i >= 0 {
-		remark = strings.TrimLeft(line[i:], " \r\n\t")
+		remark = strings.Trim(line[i+2:], " \r\n\t")
 		line = line[:i]
 	}
 
@@ -523,9 +524,6 @@ func structToDot(content string) (string, error) {
 		var def, typ string
 		var err error
 		dt.name, typ, def, dt.remark, err = parseLine(line)
-		// 如果 remark 以 // 开头, 那么删除它
-		dt.remark = strings.TrimPrefix(dt.remark, "//")
-		dt.remark = strings.Trim(dt.remark, " ")
 		// fmt.Printf("分析行:%s\n", line)
 		// fmt.Printf("键:%s, 类别:%s, 标识:%s, 备注:%s\n", key, typ, def, remark)
 		if err != nil {
