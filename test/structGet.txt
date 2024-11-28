@@ -1,0 +1,7 @@
+type get struct {
+	ID  uint `binding:"required"`
+	U   uint `binding:"required_if=Field1 foobar"` //[统计需要]如果用户登录, 需要将uid放置其中并传递
+	Fav bool //是否获取收藏信息
+	E   bool
+	// F bool
+} // 仅支持 Get 请求的结构体，因此暂时不包含数组/嵌套等复杂结构

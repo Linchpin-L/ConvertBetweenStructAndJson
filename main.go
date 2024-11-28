@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -12,7 +13,7 @@ import (
 
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
-	fmt.Println("v 0.2.2")
+	fmt.Println("v 0.2.3")
 	fmt.Println("by linchpin1029@qq.com")
 	var err error
 
@@ -104,6 +105,8 @@ func parseJsonSub(o interface{}) (string, error) {
 			line += "[]" + tt
 		}
 	case map[string]interface{}:
+		// 这里相当于一个顶级入口
+
 		line += "struct {\n"
 
 		for k, v := range t {
@@ -111,10 +114,23 @@ func parseJsonSub(o interface{}) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			line += fmt.Sprintf("%s %s `json:\"%s\"`\n", caseToUpper(k), ttt, k)
+			line += fmt.Sprintf("%s %s `json:\"%s\"`", caseToUpper(k), ttt, k)
+
+			// 将原值追加为注释，只追加字符串类型和数值类型
+			switch ttt {
+			case "string":
+				line += " // " + v.(string)
+			case "int":
+				line += " // " + strconv.Itoa(int(v.(float64)))
+			case "float64":
+				line += " // " + strconv.FormatFloat(v.(float64), 'f', 2, 64)
+			}
+			line += "\n"
 		}
 
 		line += "}"
+	case nil:
+		line += "interface{}"
 	default:
 		return "", fmt.Errorf("不支持的类型: %s, 值为: %s", t, o)
 	}
@@ -159,6 +175,9 @@ func structToJson(content string) (string, error) {
 		// fmt.Printf("键:%s, 类别:%s, 标识:%s, 备注:%s\n", key, typ, def, remark)
 		if err != nil {
 			return "", err
+		}
+		if key == "" { // 如果键为空, 那么忽略这一行。比如行被注释掉了
+			continue
 		}
 
 		// 确定字段名
@@ -286,10 +305,11 @@ func structToJson(content string) (string, error) {
 }
 
 // 从一行结构体文本中取出四个部分
-// key: 字段名
-// typ: 字段类型
-// def: 标注
-// remark: 备注. 不含 "//". 去重两端空格.
+//
+//	key: 字段名
+//	typ: 字段类型
+//	def: 标注
+//	remark: 备注. 不含 "//". 去重两端空格.
 func parseLine(line string) (key, typ, def, remark string, err error) {
 	line = strings.TrimSpace(line)
 	if line == "" {
@@ -327,8 +347,6 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 			return
 		}
 	}
-
-	err = errors.New("invalid line: " + line)
 
 	return
 }
@@ -528,6 +546,9 @@ func structToDot(content string) (string, error) {
 		// fmt.Printf("键:%s, 类别:%s, 标识:%s, 备注:%s\n", key, typ, def, remark)
 		if err != nil {
 			return "", err
+		}
+		if dt.name == "" {
+			continue
 		}
 
 		// 查询是否必填

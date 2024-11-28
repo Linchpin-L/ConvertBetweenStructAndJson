@@ -1,0 +1,14 @@
+type temp struct {
+	A  uint    `json:"123,omitempty" binding:"required,max=30,oneof=1 2 3"` // 注释
+	B  int     `binding:"omitempty,required_if=Field1 foobar"`              //注释
+	C  float64 `json:"cc" binding:"required,max=30,oneof=1 2 3"`
+	D  *string
+	E  []string
+	E1 *[]string
+	F  struct {
+		FA string
+		FB uint
+	}
+	G uint `json:"-"`
+    // H string
+}

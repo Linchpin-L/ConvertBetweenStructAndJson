@@ -1,50 +1,33 @@
 package main
 
 import (
+	_ "embed"
 	"testing"
 )
 
 func TestJsonToStruct(t *testing.T) {
-	res, err := jsonToStruct("{\"a\":1,\"b\":2,\"c\":3}")
+	res, err := jsonToStruct(`{"a":1, "b": 1.1, "c":"text", "d":null}`)
 	if err != nil {
 		t.Errorf("parseJson error: %v", err)
 		return
 	}
-	if res != "type Apple struct {\nA int `json:\"a\"`\nB int `json:\"b\"`\nC int `json:\"c\"`\n}" {
+	// 由于函数中使用了 map，这会导致此测试并不总是能通过
+	if res != "type Apple struct {\n"+
+		"A int `json:\"a\"` // 1\n"+
+		"B float64 `json:\"b\"` // 1.10\n"+
+		"C string `json:\"c\"` // text\n"+
+		"D interface{} `json:\"d\"`\n"+
+		"}" {
 		t.Errorf("parseJson error: %v", res)
 		return
 	}
 }
 
-// type temp struct {
-// 	A uint    `json:"123" binding:"required,max=30,oneof=1 2 3"` // 说明一下
-// 	B int     `binding:"omitempty"`
-// 	C float64 `json:"cc" binding:"required,max=30,oneof=1 2 3"`
-// 	D *string
-// 	E []string
-// 	F struct {
-// 		FA string
-// 		FB uint
-// 	}
-// 	G uint `json:"-"`
-// }
+//go:embed test/struct.txt
+var structExample string
 
 func TestStructToJson(t *testing.T) {
-	example := "type temp struct {\n" +
-		"A uint    `json:\"123,omitempty\" binding:\"required,max=30,oneof=1 2 3\"` // 注释\n" +
-		"B int     `binding:\"omitempty,required_if=Field1 foobar\"` //注释\n" +
-		"C float64 `json:\"cc\" binding:\"required,max=30,oneof=1 2 3\"`\n" +
-		"D *string\n" +
-		"E []string\n" +
-		"E1 *[]string\n" +
-		"F struct {\n" +
-		"FA string\n" +
-		"FB uint\n" +
-		"}\n" +
-		"G uint `json:\"-\"`\n" +
-		"}"
-
-	res, err := structToJson(example)
+	res, err := structToJson(structExample)
 	if err != nil {
 		t.Errorf("parseContent error: %v", err)
 		return
@@ -61,23 +44,19 @@ func TestStructToJson(t *testing.T) {
 "FB": 1, // uint64.
 }, // struct.
 }` {
-		t.Errorf("parseContent error: %v", res)
+		t.Errorf("final result wrong: %v", res)
 		return
 	}
 }
 
+//go:embed test/structGet.txt
+var structGetExample string
+
 func TestStructToDot(t *testing.T) {
 	// 因为 get 请求不支持嵌套, 所以这里无法与上边试用同一个 example
-	example := "struct {\n" +
-		"ID  uint `binding:\"required\"`\n" +
-		"U   uint `binding:\"required_if=Field1 foobar\"` // [统计需要]如果用户登录, 需要将uid放置其中并传递\n" +
-		"Fav bool // 是否获取收藏信息\n" +
-		"E   bool\n" +
-		"}"
-
-	res, err := structToDot(example)
+	res, err := structToDot(structGetExample)
 	if err != nil {
-		t.Errorf("parseContent error: %v", err)
+		t.Errorf("function error: %v", err)
 		return
 	}
 	if res != `true,ID,1,number,true,,"uint64, required"
@@ -85,7 +64,7 @@ false,U,1,number,false,,"uint64, required_if=Field1 foobar, [统计需要]如果
 false,Fav,0,boolean,false,,"是否获取收藏信息"
 false,E,0,boolean,false,,""
 ` {
-		t.Errorf("parseContent error: %v", res)
+		t.Errorf("final result wrong: %v", res)
 		return
 	}
 }
