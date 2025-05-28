@@ -7,7 +7,10 @@ type temp struct {
 	E1 *[]string
 	F  struct {
 		FA string
-		FB uint
+		FB []struct {
+			FBB string
+		}
+		FC uint
 	}
 	G uint `json:"-"`
     // H string

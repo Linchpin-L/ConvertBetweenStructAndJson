@@ -13,7 +13,7 @@ import (
 
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
-	fmt.Println("v 0.2.3")
+	fmt.Println("v 0.3.0")
 	fmt.Println("by linchpin1029@qq.com")
 	var err error
 
@@ -65,7 +65,7 @@ func main() {
 }
 
 func jsonToStruct(sss string) (string, error) {
-	var res interface{}
+	var res any
 	json.Unmarshal([]byte(sss), &res)
 
 	plain := "type Apple "
@@ -146,9 +146,15 @@ func structToJson(content string) (string, error) {
 	// fmt.Println(strings.Split(content, "\r\n"))
 
 	// 按行处理
-	lines := strings.Split(content, "\n")
-	for i, l := 0, len(lines); i < l; i++ {
-		line := lines[i]
+	s := 0
+	for i, l := 0, len(content); i < l; i++ {
+		if i != l-1 && content[i] != '\n' {
+			continue
+		}
+		lineS, lineE := s, i
+		line := content[s:i]
+		s = i + 1
+
 		// fmt.Printf("处理行: '%s'\n", line)
 		line = strings.Trim(line, "\r\n\t ")
 		if line == "" {
@@ -168,7 +174,6 @@ func structToJson(content string) (string, error) {
 		// fmt.Println("->>", o)
 		// 处理每一行
 
-		typeWithRemarkStart := "//" // 注释的双斜线加上值类型
 		var remarkReq tagBinding    // 备注: 对参数的要求
 		key, typ, def, remark, err := parseLine(line)
 		// fmt.Printf("分析行:%s\n", line)
@@ -210,85 +215,75 @@ func structToJson(content string) (string, error) {
 			}
 			isArray = true
 			typ = typ[2:]
+			if strings.HasPrefix(typ, "struct") {
+				typ = "struct"
+			}
 			res += "["
 		}
+
+		typeWithRemark := ""
 		switch typ {
 		case "int8":
 			res += "1"
-			typeWithRemarkStart += " int8"
+			typeWithRemark = "int8"
 		case "int16":
 			res += "1"
-			typeWithRemarkStart += " int16"
+			typeWithRemark = "int16"
 		case "int32":
 			res += "1"
-			typeWithRemarkStart += " int32"
+			typeWithRemark = "int32"
 		case "int64", "int":
 			res += "1"
-			typeWithRemarkStart += " int64"
+			typeWithRemark = "int64"
 		case "uint8":
 			res += "1"
-			typeWithRemarkStart += " uint8"
+			typeWithRemark = "uint8"
 		case "uint16":
 			res += "1"
-			typeWithRemarkStart += " uint16"
+			typeWithRemark = "uint16"
 		case "uint32":
 			res += "1"
-			typeWithRemarkStart += " uint32"
+			typeWithRemark = "uint32"
 		case "uint64", "uint":
 			res += "1"
-			typeWithRemarkStart += " uint64"
+			typeWithRemark = "uint64"
 		case "float32":
 			res += "1.1"
-			typeWithRemarkStart += " float32"
+			typeWithRemark = "float32"
 		case "float64":
 			res += "2.64"
-			typeWithRemarkStart += " float64"
+			typeWithRemark = "float64"
 		case "bool":
 			res += "false"
-			typeWithRemarkStart += " bool"
+			typeWithRemark = "bool"
 		case "string":
 			res += "\"test\""
-			typeWithRemarkStart += " string"
+			typeWithRemark = "string"
 		case "struct":
-			// 先不考虑复杂情况.
-			// 先判断这一行是不是有闭合 {}
-			if strings.Contains(line, "}") {
-				res += "{}"
-				typeWithRemarkStart += " struct"
-			} else {
-				// 向下寻找到 }
-				child := "struct {\n" // 还保持行的模式
-				for j := i + 1; j < l; j++ {
-					currentLine := strings.TrimSpace(lines[j])
-					if idx := strings.Index(currentLine, "}"); idx > -1 {
-						child += currentLine[:idx]
-						child += "\n"
-						child += "}"
-						// fmt.Println("$1", child, "$2")
-						temp, err := structToJson(child)
-						if err != nil {
-							fmt.Println("PC error:", err)
-						}
-						// fmt.Println("#1", temp, "#2")
-						res += temp
-						i = j // 接下来的几行都不用看了
-						break
-					} else {
-						child += currentLine
-						child += "\n"
-						// fmt.Println("add1", currentLine)
-						// fmt.Println("add2", child)
-					}
-				}
-				typeWithRemarkStart += " struct"
+			// 向下寻找到 }
+			ss := strings.Index(content[lineS:lineE], "struct")
+			ss2 := strings.Index(content[lineS:lineE], "{")
+			ee, err := findMatchingBrace(content, lineS+ss2)
+			if err != nil {
+				return "", err
 			}
+			temp, err := structToJson(content[lineS+ss : ee+1])
+			if err != nil {
+				return "", err
+			}
+			res += temp
+			typeWithRemark += "object"
+			s = ee + 1 // 更新 s, 以便下次处理
+			i = s
 		default:
 			fmt.Printf("unknown type: \"%s\"\n", typ)
 		}
 		if isArray {
-			res += "]"
+			res += "], // []" + typeWithRemark + "."
+		} else {
+			res += ", // " + typeWithRemark + "."
 		}
-		res += ", " + typeWithRemarkStart + "."
+
 		if remarkReq != nil {
 			res += " " + remarkReq.value() + "."
 		}
@@ -339,11 +334,12 @@ func parseLine(line string) (key, typ, def, remark string, err error) {
 		}
 		// 是空格
 		if s != -1 {
-			key = line[s:i]
+			key = line[s:i] // 键
 			typ = strings.Trim(line[i:], " \r\n\t")
 			if strings.HasPrefix(typ, "struct") { // typ: "struct {}"
 				typ = "struct"
 			}
+			// fixme 类别返回如此：[]struct {
 			return
 		}
 	}
@@ -646,4 +642,24 @@ func structToDot(content string) (string, error) {
 	}
 
 	return res, nil
+}
+
+// 返回匹配的闭合括号位置
+func findMatchingBrace(content string, start int) (int, error) {
+	if start < 0 || start >= len(content) || content[start] != '{' {
+		return -1, errors.New("start index is not a '{'")
+	}
+	stack := 1
+	for i := start + 1; i < len(content); i++ {
+		switch content[i] {
+		case '{':
+			stack++
+		case '}':
+			stack--
+			if stack == 0 {
+				return i, nil
+			}
+		}
+	}
+	return -1, errors.New("no matching closing brace found")
 }

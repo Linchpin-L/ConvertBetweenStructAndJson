@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// 由于此函数不保证键的顺序，因此测试结果可能不准确
 func TestJsonToStruct(t *testing.T) {
 	res, err := jsonToStruct(`{"a":1, "b": 1.1, "c":"text", "d":null}`)
 	if err != nil {
@@ -37,12 +38,15 @@ func TestStructToJson(t *testing.T) {
 "B": 1, // int64. omitempty,required_if=Field1 foobar. 注释
 "cc": 2.64, // float64. required,max=30,oneof=1 2 3.
 "D": "test", // string.
-"E": ["test"], // string.
-"E1": ["test"], // string.
+"E": ["test"], // []string.
+"E1": ["test"], // []string.
 "F": {
 "FA": "test", // string.
-"FB": 1, // uint64.
-}, // struct.
+"FB": [{
+"FBB": "test", // string.
+}], // []object.
+"FC": 1, // uint64.
+}, // object.
 }` {
 		t.Errorf("final result wrong: %v", res)
 		return
