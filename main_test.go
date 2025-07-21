@@ -7,7 +7,7 @@ import (
 
 // 由于此函数不保证键的顺序，因此测试结果可能不准确
 func TestJsonToStruct(t *testing.T) {
-	res, err := jsonToStruct(`{"a":1, "b": 1.1, "c":"text", "d":null}`)
+	res, err := jsonToStruct(`{"a":1, "b": 1.1, "c":"te\n\rxt", "d":null}`)
 	if err != nil {
 		t.Errorf("parseJson error: %v", err)
 		return

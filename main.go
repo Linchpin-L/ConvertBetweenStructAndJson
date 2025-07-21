@@ -13,7 +13,7 @@ import (
 
 func main() {
 	fmt.Println("strcut 和 json 互相转换, 直接按回车即可, 将从剪贴板中读取内容并转换")
-	fmt.Println("v 0.3.0")
+	fmt.Println("v 0.3.1")
 	fmt.Println("by linchpin1029@qq.com")
 	var err error
 
@@ -79,7 +79,7 @@ func jsonToStruct(sss string) (string, error) {
 }
 
 // 此函数只考虑 值部分
-func parseJsonSub(o interface{}) (string, error) {
+func parseJsonSub(o any) (string, error) {
 	line := ""
 
 	switch t := o.(type) {
@@ -94,7 +94,7 @@ func parseJsonSub(o interface{}) (string, error) {
 		}
 	case string:
 		line += "string"
-	case []interface{}:
+	case []any:
 		if len(t) == 0 {
 			line += "[]interface{}"
 		} else {
@@ -104,7 +104,7 @@ func parseJsonSub(o interface{}) (string, error) {
 			}
 			line += "[]" + tt
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		// 这里相当于一个顶级入口
 
 		line += "struct {\n"
@@ -119,7 +119,10 @@ func parseJsonSub(o interface{}) (string, error) {
 			// 将原值追加为注释，只追加字符串类型和数值类型
 			switch ttt {
 			case "string":
-				line += " // " + v.(string)
+				// 如果 v 中包含了回车换行符，那么将其替换为空格，避免注释出错
+				t := strings.ReplaceAll(v.(string), "\n", "")
+				t = strings.ReplaceAll(t, "\r", "")
+				line += " // " + t
 			case "int":
 				line += " // " + strconv.Itoa(int(v.(float64)))
 			case "float64":
